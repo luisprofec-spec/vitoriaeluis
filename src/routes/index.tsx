@@ -103,7 +103,7 @@ function Index() {
           </div>
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {GIFTS.filter((g) => FILTERS[filter].fn(g.price)).map((g) => (
+          {GIFTS.filter((g) => (FILTERS[filter]?.fn(g.price) ?? true)).map((g) => (
             <Card key={g.id} className="group overflow-hidden p-0">
               <GiftImage index={g.img} className="aspect-[4/3] transition duration-500 group-hover:scale-[1.03]" />
               <div className="p-6">
