@@ -8,14 +8,17 @@ export type Settings = {
   partner1: string; partner2: string; tagline: string; story: string;
   heroImage: string; storyImage: string; gallery: string[];
   date: string; ceremony: Venue; reception: Venue;
-  pixType: string; pixKey: string; whatsapp: string; cardLink: string; boletoLink: string; goal: number;
+  pixType: string; pixKey: string; pixCity: string; whatsapp: string; cardLink: string; boletoLink: string; goal: number;
+  heroImages: string[];
+  musicEnabled: boolean; musicTitle: string; musicUrl: string; musicLoop: boolean;
 };
 export const DEFAULT_SETTINGS: Settings = {
   partner1: "Helena", partner2: "Rafael", tagline: "Vamos nos casar",
   story: "Nos conhecemos numa manhã chuvosa de 2019, disputando a última mesa de uma cafeteria.",
   heroImage: "", storyImage: "", gallery: [], date: "2028-10-14",
   ceremony: { time: "16:00", place: "", address: "" }, reception: { time: "18:30", place: "", address: "" },
-  pixType: "E-mail", pixKey: "", whatsapp: "", cardLink: "", boletoLink: "", goal: 15000,
+  heroImages: [], musicEnabled: false, musicTitle: "", musicUrl: "", musicLoop: true,
+  pixType: "E-mail", pixKey: "", pixCity: "SAO PAULO", whatsapp: "", cardLink: "", boletoLink: "", goal: 15000,
 };
 export const PIX_TYPES = ["E-mail", "CPF", "CNPJ", "Telefone", "Chave aleatória"];
 export const coupleNames = (s: Settings) => `${s.partner1} & ${s.partner2}`;
@@ -39,15 +42,13 @@ export function useSaveSettings() {
   };
 }
 
-export type Gift = { id: string; title: string; price: number; img: number; description: string };
-export const GIFTS: Gift[] = [
-  { id: "jantar", title: "Jantar Romântico na Lua de Mel", price: 280, img: 0, description: "Velas, vinho e vista para o mar." },
-  { id: "barco", title: "Passeio de Barco", price: 450, img: 1, description: "Uma tarde velejando em águas azuis." },
-  { id: "cafeteira", title: "Cafeteira dos Sonhos", price: 180, img: 2, description: "Para os cafés da manhã a dois." },
-  { id: "mercado", title: "Primeira Compra do Mês", price: 90, img: 3, description: "A despensa do novo lar agradece." },
-  { id: "enxoval", title: "Enxoval Aconchegante", price: 220, img: 4, description: "Lençóis macios para dias preguiçosos." },
-  { id: "balao", title: "Voo de Balão ao Amanhecer", price: 650, img: 5, description: "Um nascer do sol inesquecível." },
-];
+export type Gift = { id: string; title: string; price: number; category: string; description: string; image_url: string; sprite_index: number | null; sort: number };
+export const giftsQuery = { queryKey: ["gifts"], queryFn: async (): Promise<Gift[]> => {
+  const { data, error } = await supabase.from("gifts").select("*").order("sort").order("created_at");
+  if (error) throw error;
+  return (data ?? []).map((g) => ({ ...g, price: Number(g.price) }));
+} };
+export function useGifts() { return useQuery(giftsQuery).data ?? []; }
 
 export type CardStyle = "floral" | "honeymoon" | "minimal" | "party";
 export const CARD_STYLES: { id: CardStyle; label: string }[] = [
@@ -118,3 +119,32 @@ export function contactLink(contact: string, text: string) {
 export const brl = (n: number) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 export const fmtDate = (d: string) => new Date(d.length === 10 ? d + "T12:00:00" : d).toLocaleDateString("pt-BR");
 export const fmtLongDate = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+// ---- Pix BR Code (EMV, static with amount) ----
+const tlv = (id: string, v: string) => id + String(v.length).padStart(2, "0") + v;
+const ascii = (v: string, max: number) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9 .@+\-_]/g, "").trim().slice(0, max).toUpperCase();
+export function crc16(str: string) {
+  let crc = 0xffff;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, "0");
+}
+export function normalizePixKey(type: string, key: string) {
+  const k = key.trim();
+  if (type === "CPF" || type === "CNPJ") return k.replace(/\D/g, "");
+  if (type === "Telefone") { if (k.startsWith("+")) return "+" + k.replace(/\D/g, ""); const d = k.replace(/\D/g, ""); return "+" + (d.length <= 11 ? "55" + d : d); }
+  if (type === "E-mail") return k.toLowerCase();
+  return k;
+}
+export function pixPayload({ key, type, name, city, amount, txid = "***" }: { key: string; type: string; name: string; city: string; amount: number; txid?: string }) {
+  const body =
+    tlv("00", "01") +
+    tlv("26", tlv("00", "br.gov.bcb.pix") + tlv("01", normalizePixKey(type, key))) +
+    tlv("52", "0000") + tlv("53", "986") +
+    (amount > 0 ? tlv("54", amount.toFixed(2)) : "") +
+    tlv("58", "BR") + tlv("59", ascii(name, 25) || "NOIVOS") + tlv("60", ascii(city, 15) || "BRASIL") +
+    tlv("62", tlv("05", txid)) + "6304";
+  return body + crc16(body);
+}
