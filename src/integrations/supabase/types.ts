@@ -47,6 +47,42 @@ export type Database = {
         }
         Relationships: []
       }
+      gifts: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          image_url: string
+          price: number
+          sort: number
+          sprite_index: number | null
+          title: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string
+          price: number
+          sort?: number
+          sprite_index?: number | null
+          title: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string
+          price?: number
+          sort?: number
+          sprite_index?: number | null
+          title?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           card_style: string
