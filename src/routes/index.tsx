@@ -4,11 +4,13 @@ import { Calendar, Check, Clock, Heart, MapPin, ShoppingBag } from "lucide-react
 import couple from "@/assets/couple.jpg";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { GiftImage } from "@/components/GiftImage";
+import { GiftPhoto } from "@/components/GiftImage";
+import { MusicPlayer } from "@/components/MusicPlayer";
+import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { CheckoutDialog } from "@/components/GiftDialog";
 import { CartSheet } from "@/components/CartSheet";
 import { Postcard } from "@/components/Postcard";
-import { GIFTS, brl, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, weddingDate } from "@/lib/wedding";
+import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, weddingDate } from "@/lib/wedding";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -47,7 +49,10 @@ function Index() {
   const [checkout, setCheckout] = useState(false);
   const cart = useCart();
   const messages = useMessages().filter((m) => m.visible);
-  const hero = st.heroImage || couple;
+  const gifts = useGifts();
+  const heroes = st.heroImages.length ? st.heroImages : [st.heroImage || couple];
+  const [api, setApi] = useState<CarouselApi>();
+  useEffect(() => { if (!api || heroes.length < 2) return; const t = setInterval(() => api.scrollNext(), 5000); return () => clearInterval(t); }, [api, heroes.length]);
   const storyImg = st.storyImage || couple;
   useEffect(() => { document.title = `${names} · Nosso Casamento`; }, [names]);
   const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"]];
@@ -55,12 +60,18 @@ function Index() {
   return (
     <div className="min-h-screen bg-background">
       <header className="relative flex min-h-[92vh] flex-col overflow-hidden">
-        <img src={hero} alt={`Foto de ${names}`} width={1600} height={1008} className="absolute inset-0 h-full w-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-foreground/40 via-foreground/20 to-foreground/70" />
-        <nav className="relative z-10 mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-6 py-6 text-sm text-primary-foreground/90">
+        <Carousel setApi={setApi} opts={{ loop: true }} className="absolute inset-0">
+          <CarouselContent className="ml-0">
+            {heroes.map((src, i) => (
+              <CarouselItem key={src + i} className="pl-0"><img src={src} alt={`Foto ${i + 1} de ${names}`} loading={i ? "lazy" : "eager"} className="h-[92vh] min-h-full w-full object-cover" /></CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-foreground/40 via-foreground/20 to-foreground/70" />
+        <nav className="relative z-10 pointer-events-auto mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-6 py-6 text-sm text-primary-foreground/90">
           {nav.map(([h, l]) => <a key={h} href={h} className="hover:text-primary-foreground">{l}</a>)}
         </nav>
-        <div className="relative z-10 m-auto px-6 text-center text-primary-foreground">
+        <div className="pointer-events-none relative z-10 m-auto px-6 text-center text-primary-foreground">
           <p className="eyebrow mb-6">{st.tagline}</p>
           <h1 className="text-6xl font-medium italic md:text-8xl">{names}</h1>
           <p className="mt-6 text-lg tracking-wide first-letter:uppercase">{fmtLongDate(st.date)}</p>
@@ -119,11 +130,12 @@ function Index() {
           </div>
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {GIFTS.filter((g) => (FILTERS[filter]?.fn(g.price) ?? true)).map((g) => (
+          {gifts.filter((g) => (FILTERS[filter]?.fn(g.price) ?? true)).map((g) => (
             <Card key={g.id} className="group overflow-hidden p-0">
-              <GiftImage index={g.img} className="aspect-[4/3] transition duration-500 group-hover:scale-[1.03]" />
+              <GiftPhoto gift={g} className="aspect-[4/3] transition duration-500 group-hover:scale-[1.03]" />
               <div className="p-6">
-                <h3 className="text-xl">{g.title}</h3>
+                <p className="eyebrow text-[10px]">{g.category}</p>
+                <h3 className="mt-1 text-xl">{g.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{g.description}</p>
                 <div className="mt-5 flex items-center justify-between">
                   <span className="text-lg font-semibold">{brl(g.price)}</span>
@@ -158,6 +170,7 @@ function Index() {
       </footer>
 
       <div className="fixed right-5 top-5 z-40"><CartSheet open={cartOpen} onOpenChange={setCartOpen} onCheckout={() => { setCartOpen(false); setCheckout(true); }} /></div>
+      <MusicPlayer />
       <CheckoutDialog open={checkout} onClose={() => setCheckout(false)} />
     </div>
   );
