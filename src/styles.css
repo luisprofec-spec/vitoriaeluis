@@ -174,3 +174,19 @@
   text-transform: uppercase;
   color: var(--gold);
 }
+
+/* Postcard templates */
+:root {
+  --card-floral: linear-gradient(135deg, oklch(0.97 0.03 20), oklch(0.93 0.05 350));
+  --card-floral-ink: oklch(0.42 0.1 10);
+  --card-honeymoon: linear-gradient(160deg, oklch(0.93 0.05 210), oklch(0.95 0.05 80));
+  --card-honeymoon-ink: oklch(0.38 0.08 230);
+  --card-minimal: linear-gradient(180deg, oklch(0.99 0.003 75), oklch(0.97 0.006 75));
+  --card-minimal-ink: oklch(0.25 0.01 60);
+  --card-party: linear-gradient(135deg, oklch(0.3 0.03 60), oklch(0.22 0.02 50));
+  --card-party-ink: oklch(0.86 0.09 85);
+}
+@utility postcard-floral { background: var(--card-floral); color: var(--card-floral-ink); }
+@utility postcard-honeymoon { background: var(--card-honeymoon); color: var(--card-honeymoon-ink); }
+@utility postcard-minimal { background: var(--card-minimal); color: var(--card-minimal-ink); border: 1px solid var(--border); }
+@utility postcard-party { background: var(--card-party); color: var(--card-party-ink); }
