@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Wedding platform
+- Site content (names, photos, dates, Pix, links) lives in one `site_settings` row (jsonb) so each couple customizes without code changes.
+- First account created becomes admin via auth trigger; admin UI is `_authenticated/admin` and RLS `has_role` guards data.
+- Guest gift cart is browser-only (localStorage); submissions insert into `contributions` + `messages` directly via RLS (anon insert-only, admin read).
+- Photo bucket is private (public buckets blocked); uploads store a 10-year signed URL in settings.
