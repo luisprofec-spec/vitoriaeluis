@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { cartTotal, contactLink, submissionSchema, thankYouMessage } from "@/lib/wedding";
+import { crc16, pixPayload, cartTotal, contactLink, submissionSchema, thankYouMessage } from "@/lib/wedding";
 
 describe("wedding rules", () => {
+  it("crc16 matches CCITT-FALSE check value", () => { expect(crc16("123456789")).toBe("29B1"); });
+  it("pix code carries the cart amount and key", () => {
+    const c = pixPayload({ key: "noivos@email.com", type: "E-mail", name: "Helena & Rafael", city: "São Paulo", amount: 270 });
+    expect(c).toContain("5406270.00");
+    expect(c).toContain("0116noivos@email.com");
+    expect(c.slice(-4)).toBe(crc16(c.slice(0, -4)));
+  });
   it("sums the cart", () => {
     expect(cartTotal([{ id: "a", title: "A", price: 180 }, { id: "b", title: "B", price: 90 }])).toBe(270);
   });

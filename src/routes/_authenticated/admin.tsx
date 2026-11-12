@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Postcard } from "@/components/Postcard";
 import { IdentityForm } from "@/components/admin/IdentityForm";
+import { GiftsManager } from "@/components/admin/GiftsManager";
 import { SettingsForm } from "@/components/admin/SettingsForm";
 import { brl, contactLink, coupleNames, fmtDate, thankYouMessage, useMessages, useSettings, type Contribution } from "@/lib/wedding";
 
@@ -87,7 +88,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         </div>
         <Tabs defaultValue="presentes" className="mt-10">
           <TabsList className="flex-wrap">
-            <TabsTrigger value="presentes">Presentes</TabsTrigger><TabsTrigger value="mensagens">Mensagens</TabsTrigger>
+            <TabsTrigger value="presentes">Presentes</TabsTrigger><TabsTrigger value="mensagens">Mensagens</TabsTrigger><TabsTrigger value="catalogo">Gerenciar Presentes</TabsTrigger>
             <TabsTrigger value="identidade">Identidade do Casal & Fotos</TabsTrigger><TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
           <TabsContent value="presentes">
@@ -132,6 +133,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
               </div>
             ))}
           </TabsContent>
+          <TabsContent value="catalogo"><GiftsManager /></TabsContent>
           <TabsContent value="identidade"><IdentityForm settings={settings} /></TabsContent>
           <TabsContent value="config"><SettingsForm settings={settings} /></TabsContent>
         </Tabs>

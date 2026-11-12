@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PIX_TYPES, useSaveSettings, type Settings, type Venue } from "@/lib/wedding";
@@ -19,9 +20,10 @@ export function SettingsForm({ settings }: { settings: Settings }) {
   return (
     <Card className="space-y-8 p-6">
       <section className="space-y-4"><h3 className="text-xl">Pix</h3>
-        <div className="grid gap-4 md:grid-cols-[200px_1fr]">
+        <div className="grid gap-4 md:grid-cols-[200px_1fr_200px]">
           <F label="Tipo de chave"><Select value={s.pixType} onValueChange={(v) => setS({ ...s, pixType: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PIX_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></F>
           <F label="Chave Pix"><Input value={s.pixKey} onChange={(e) => setS({ ...s, pixKey: e.target.value })} /></F>
+          <F label="Cidade (para o Pix)"><Input maxLength={15} value={s.pixCity} onChange={(e) => setS({ ...s, pixCity: e.target.value })} /></F>
         </div>
       </section>
       <section className="space-y-4"><h3 className="text-xl">Contato e links de pagamento</h3>
@@ -41,6 +43,15 @@ export function SettingsForm({ settings }: { settings: Settings }) {
             <F label="Endereço"><Input value={s[k].address} onChange={(e) => venue(k, "address", e.target.value)} /></F>
           </div>
         ))}
+      </section>
+      <section className="space-y-4"><h3 className="text-xl">Trilha Sonora dos Noivos</h3>
+        <div className="flex items-center gap-3"><Switch id="me" checked={s.musicEnabled} onCheckedChange={(v) => setS({ ...s, musicEnabled: v })} /><Label htmlFor="me">Ativar Música de Fundo</Label></div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <F label="Título da Música / Artista"><Input placeholder="Nossa Trilha Sonora 🎵" value={s.musicTitle} onChange={(e) => setS({ ...s, musicTitle: e.target.value })} /></F>
+          <F label="Link do Arquivo de Áudio (.mp3, rádio ou CDN)"><Input placeholder="https://…/musica.mp3" value={s.musicUrl} onChange={(e) => setS({ ...s, musicUrl: e.target.value })} /></F>
+        </div>
+        <div className="flex items-center gap-3"><Switch id="ml" checked={s.musicLoop} onCheckedChange={(v) => setS({ ...s, musicLoop: v })} /><Label htmlFor="ml">Repetir continuamente (loop)</Label></div>
+        {s.musicUrl && <audio controls src={s.musicUrl} className="w-full" preload="none" />}
       </section>
       <Button onClick={async () => { try { await save(s); toast.success("Configurações salvas!"); } catch { toast.error("Não foi possível salvar."); } }}>Salvar Configurações</Button>
     </Card>

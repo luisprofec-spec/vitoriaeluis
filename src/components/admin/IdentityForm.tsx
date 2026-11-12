@@ -11,7 +11,7 @@ import couple from "@/assets/couple.jpg";
 import { useSaveSettings, type Settings } from "@/lib/wedding";
 
 // Bucket is private (workspace blocks public buckets), so store a long-lived signed URL.
-async function uploadPhoto(file: File) {
+export async function uploadPhoto(file: File) {
   const path = `${crypto.randomUUID()}-${file.name.replace(/[^\w.-]/g, "_")}`;
   const { error } = await supabase.storage.from("photos").upload(path, file, { contentType: file.type });
   if (error) throw error;
@@ -42,8 +42,10 @@ function PhotoField({ label, value, onChange }: { label: string; value: string; 
 }
 
 export function IdentityForm({ settings }: { settings: Settings }) {
-  const [s, setS] = useState(settings);
-  useEffect(() => setS(settings), [settings]);
+  const init = (x: Settings) => ({ ...x, heroImages: x.heroImages.length ? x.heroImages : x.heroImage ? [x.heroImage] : [] });
+  const [s, setS] = useState(() => init(settings));
+  useEffect(() => setS(init(settings)), [settings]);
+  const [heroUrl, setHeroUrl] = useState("");
   const save = useSaveSettings();
   const [newUrl, setNewUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,9 +57,27 @@ export function IdentityForm({ settings }: { settings: Settings }) {
       </div>
       <div className="space-y-1.5"><Label htmlFor="tg">Frase de destaque da capa</Label><Input id="tg" value={s.tagline} onChange={(e) => setS({ ...s, tagline: e.target.value })} /></div>
       <div className="space-y-1.5"><Label htmlFor="st">Nossa história</Label><Textarea id="st" rows={4} value={s.story} onChange={(e) => setS({ ...s, story: e.target.value })} /></div>
-      <div className="grid gap-6 md:grid-cols-2">
-        <PhotoField label="Foto principal (capa)" value={s.heroImage} onChange={(v) => setS({ ...s, heroImage: v })} />
+      <div className="grid gap-6 md:max-w-md">
         <PhotoField label="Foto da seção Nossa História" value={s.storyImage} onChange={(v) => setS({ ...s, storyImage: v })} />
+      </div>
+      <div className="space-y-2">
+        <Label>Fotos do carrossel da capa</Label>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {s.heroImages.map((g, i) => (
+            <div key={i} className="relative"><img src={g} alt="" className="aspect-video w-full rounded object-cover" />
+              <button className="absolute right-1 top-1 rounded-full bg-background p-0.5" aria-label="Remover foto da capa" onClick={() => setS({ ...s, heroImages: s.heroImages.filter((_, j) => j !== i) })}><X className="h-3 w-3" /></button></div>
+          ))}
+          {!s.heroImages.length && <p className="col-span-full text-sm text-muted-foreground">Nenhuma foto: a capa usa a foto padrão.</p>}
+        </div>
+        <div className="flex gap-2">
+          <Input placeholder="URL da foto da capa" value={heroUrl} onChange={(e) => setHeroUrl(e.target.value)} />
+          <Button variant="outline" disabled={!heroUrl} onClick={() => { setS({ ...s, heroImages: [...s.heroImages, heroUrl] }); setHeroUrl(""); }}>Adicionar</Button>
+          <Button asChild variant="outline"><label className="cursor-pointer"><Upload className="h-4 w-4" />Enviar
+            <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+              const files = Array.from(e.target.files ?? []);
+              try { const urls = await Promise.all(files.map(uploadPhoto)); setS((p) => ({ ...p, heroImages: [...p.heroImages, ...urls] })); } catch { toast.error("Falha no envio."); }
+            }} /></label></Button>
+        </div>
       </div>
       <div className="space-y-2">
         <Label>Galeria</Label>
