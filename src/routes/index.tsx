@@ -10,7 +10,7 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/com
 import { CheckoutDialog } from "@/components/GiftDialog";
 import { CartSheet } from "@/components/CartSheet";
 import { Postcard } from "@/components/Postcard";
-import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, weddingDate } from "@/lib/wedding";
+import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, useSettingsReady, weddingDate } from "@/lib/wedding";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,6 +42,7 @@ function useCountdown(target: Date) {
 
 function Index() {
   const st = useSettings();
+  const ready = useSettingsReady();
   const names = coupleNames(st);
   const cd = useCountdown(weddingDate(st));
   const [filter, setFilter] = useState(0);
@@ -56,6 +57,12 @@ function Index() {
   const storyImg = st.storyImage || couple;
   useEffect(() => { document.title = `${names} · Nosso Casamento`; }, [names]);
   const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"]];
+
+  if (!ready) return (
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <Heart className="h-8 w-8 animate-pulse text-terracotta" aria-label="Carregando" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">

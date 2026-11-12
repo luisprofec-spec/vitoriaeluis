@@ -33,6 +33,9 @@ export function useSettings() {
   const q = useQuery(settingsQuery);
   return q.data ?? DEFAULT_SETTINGS;
 }
+export function useSettingsReady() {
+  return useQuery(settingsQuery).isSuccess;
+}
 export function useSaveSettings() {
   const qc = useQueryClient();
   return async (s: Settings) => {
