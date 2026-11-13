@@ -12,10 +12,7 @@ import { Postcard } from "@/components/Postcard";
 import { IdentityForm } from "@/components/admin/IdentityForm";
 import { GiftsManager } from "@/components/admin/GiftsManager";
 import { SettingsForm } from "@/components/admin/SettingsForm";
-import { GuestsManager } from "@/components/admin/GuestsManager";
-import { MenusManager } from "@/components/admin/MenusManager";
-import { PanelAdmins } from "@/components/admin/PanelAdmins";
-import { brl, contactLink, coupleNames, fmtDate, thankYouMessage, useMessages, useSettings, type Contribution, STATUS_LABEL } from "@/lib/wedding";
+import { brl, contactLink, coupleNames, fmtDate, thankYouMessage, useMessages, useSettings, type Contribution } from "@/lib/wedding";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [
@@ -31,7 +28,6 @@ function Admin() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const role = useQuery({ queryKey: ["is-admin", user.id], queryFn: async () => {
-    await supabase.rpc("claim_admin_invite");
     const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
     return !!data;
   } });
@@ -54,8 +50,8 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     if (error) throw error;
     return (data ?? []) as unknown as Contribution[];
   } }).data ?? [];
-  const setStatus = async (c: Contribution, status: Contribution["status"]) => {
-    await supabase.from("contributions").update({ status }).eq("id", c.id);
+  const toggleStatus = async (c: Contribution) => {
+    await supabase.from("contributions").update({ status: c.status === "Confirmado" ? "Pendente" : "Confirmado" }).eq("id", c.id);
     qc.invalidateQueries({ queryKey: ["contributions"] });
   };
   const toggleMsg = async (id: string, visible: boolean) => {
@@ -66,9 +62,9 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   const pending = contributions.filter((c) => c.status === "Pendente").reduce((s, c) => s + Number(c.total), 0);
   const goal = settings.goal || 1;
   const stats = [
-    { icon: Wallet, label: "Total arrecadado", value: brl(total), sub: `${brl(pending)} aguardando conferência` },
+    { icon: Wallet, label: "Total arrecadado", value: brl(total), sub: `${brl(pending)} pendente` },
     { icon: Target, label: "Meta", value: brl(settings.goal), sub: `${Math.round((total / goal) * 100)}% alcançado`, progress: Math.min(100, (total / goal) * 100) },
-    { icon: Gift, label: "Presentes recebidos", value: contributions.filter((c) => c.status !== "Cancelado").length },
+    { icon: Gift, label: "Presentes recebidos", value: contributions.length },
     { icon: MessageSquare, label: "Mensagens", value: messages.length },
   ];
   return (
@@ -93,7 +89,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         <Tabs defaultValue="presentes" className="mt-10">
           <TabsList className="flex-wrap">
             <TabsTrigger value="presentes">Presentes</TabsTrigger><TabsTrigger value="mensagens">Mensagens</TabsTrigger><TabsTrigger value="catalogo">Gerenciar Presentes</TabsTrigger>
-            <TabsTrigger value="identidade">Identidade do Casal & Fotos</TabsTrigger><TabsTrigger value="convidados">Lista de Convidados</TabsTrigger><TabsTrigger value="menus">Menus Informativos</TabsTrigger><TabsTrigger value="config">Configurações</TabsTrigger>
+            <TabsTrigger value="identidade">Identidade do Casal & Fotos</TabsTrigger><TabsTrigger value="config">Configurações</TabsTrigger>
           </TabsList>
           <TabsContent value="presentes">
             <Card className="overflow-x-auto p-0">
@@ -106,16 +102,16 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
                       <TableCell><div className="font-medium">{c.guest}</div><div className="text-xs text-muted-foreground">{c.contact}</div></TableCell>
                       <TableCell className="max-w-56">{c.items.map((i) => i.title).join(", ")}</TableCell>
                       <TableCell>{brl(Number(c.total))}</TableCell>
-                      <TableCell>{c.method}{c.proof && <div className="max-w-40 truncate text-xs text-muted-foreground" title={c.proof}>Comprovante: {c.proof}</div>}</TableCell>
-                      <TableCell><Badge variant={c.status === "Confirmado" ? "default" : "secondary"} className={c.status === "Confirmado" ? "bg-success" : c.status === "Cancelado" ? "opacity-60" : ""}>{STATUS_LABEL[c.status] ?? c.status}</Badge></TableCell>
+                      <TableCell>{c.method}</TableCell>
+                      <TableCell><Badge variant={c.status === "Confirmado" ? "default" : "secondary"} className={c.status === "Confirmado" ? "bg-success" : ""}>{c.status}</Badge></TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
                           <Button size="sm" variant="outline" asChild>
                             <a href={contactLink(c.contact, thankYouMessage(c.guest, c.items.map((i) => i.title), settings))} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /> Agradecer no WhatsApp</a>
                           </Button>
-                          {c.status !== "Confirmado" && <Button size="sm" onClick={() => setStatus(c, "Confirmado")}><CheckCircle className="h-4 w-4" /> Confirmar Pagamento</Button>}
-                          {c.status !== "Cancelado" && <Button size="sm" variant="ghost" onClick={() => setStatus(c, "Cancelado")}>Cancelar / Liberar Presente</Button>}
-                          {c.status === "Cancelado" && <Button size="sm" variant="ghost" onClick={() => setStatus(c, "Pendente")}>Reabrir</Button>}
+                          <Button size="sm" variant={c.status === "Confirmado" ? "ghost" : "default"} onClick={() => toggleStatus(c)}>
+                            {c.status === "Confirmado" ? "Desfazer" : <><CheckCircle className="h-4 w-4" /> Confirmar pagamento</>}
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -139,9 +135,7 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
           </TabsContent>
           <TabsContent value="catalogo"><GiftsManager /></TabsContent>
           <TabsContent value="identidade"><IdentityForm settings={settings} /></TabsContent>
-          <TabsContent value="convidados"><GuestsManager /></TabsContent>
-          <TabsContent value="menus"><MenusManager /></TabsContent>
-          <TabsContent value="config"><SettingsForm settings={settings} /><PanelAdmins /></TabsContent>
+          <TabsContent value="config"><SettingsForm settings={settings} /></TabsContent>
         </Tabs>
       </div>
     </div>
