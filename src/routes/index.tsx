@@ -10,7 +10,9 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/com
 import { CheckoutDialog } from "@/components/GiftDialog";
 import { CartSheet } from "@/components/CartSheet";
 import { Postcard } from "@/components/Postcard";
-import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, useSettingsReady, weddingDate } from "@/lib/wedding";
+import { RsvpSection } from "@/components/RsvpSection";
+import { useQuery } from "@tanstack/react-query";
+import { menusQuery, menuAnchor, brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, useSettingsReady, weddingDate } from "@/lib/wedding";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -56,7 +58,8 @@ function Index() {
   useEffect(() => { if (!api || heroes.length < 2) return; const t = setInterval(() => api.scrollNext(), 5000); return () => clearInterval(t); }, [api, heroes.length]);
   const storyImg = st.storyImage || couple;
   useEffect(() => { document.title = `${names} · Nosso Casamento`; }, [names]);
-  const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"]];
+  const menus = (useQuery(menusQuery).data ?? []).filter((m) => m.is_active);
+  const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#rsvp", "Confirmar Presença"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"], ...menus.map((m) => [`#${menuAnchor(m)}`, m.title])];
 
   if (!ready) return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -127,6 +130,8 @@ function Index() {
         </div>
       </section>
 
+      <RsvpSection />
+
       <section id="presentes" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center">
           <p className="eyebrow">Lista de presentes</p>
@@ -169,6 +174,15 @@ function Index() {
           </div>
         </div>
       </section>
+
+      {menus.map((m, i) => (
+        <section key={m.id} id={menuAnchor(m)} className={`scroll-mt-6 px-6 py-24 ${i % 2 ? "bg-secondary/50" : ""}`}>
+          <div className={`mx-auto grid max-w-5xl items-center gap-12 ${m.image_url ? "md:grid-cols-2" : "max-w-2xl text-center"}`}>
+            {m.image_url && <img src={m.image_url} alt={m.title} loading="lazy" className="aspect-[4/3] w-full rounded-sm object-cover" />}
+            <div><p className="eyebrow">Informações</p><h2 className="mt-3 text-4xl">{m.title}</h2><p className="mt-6 whitespace-pre-line leading-relaxed text-muted-foreground">{m.content}</p></div>
+          </div>
+        </section>
+      ))}
 
       <footer className="px-6 py-12 text-center text-sm text-muted-foreground">
         <Heart className="mx-auto mb-3 h-5 w-5 text-terracotta" />

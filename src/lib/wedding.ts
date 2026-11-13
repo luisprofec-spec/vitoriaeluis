@@ -60,7 +60,7 @@ export const CARD_STYLES: { id: CardStyle; label: string }[] = [
 ];
 export type PaymentMethod = "Pix" | "Cartão" | "Boleto";
 export type CartItem = { id: string; title: string; price: number };
-export type Contribution = { id: string; created_at: string; guest: string; contact: string; items: CartItem[]; total: number; method: PaymentMethod; status: "Pendente" | "Confirmado" };
+export type Contribution = { id: string; created_at: string; guest: string; contact: string; items: CartItem[]; total: number; method: PaymentMethod; status: "Pendente" | "Confirmado" | "Cancelado"; proof?: string | null; guest_id?: string | null };
 export type Message = { id: string; created_at: string; guest: string; text: string; card_style: CardStyle; gifts: string | null; visible: boolean };
 
 export function useMessages() {
@@ -99,12 +99,14 @@ export const submissionSchema = z.object({
   cardStyle: z.enum(["floral", "honeymoon", "minimal", "party"]),
   method: z.enum(["Pix", "Cartão", "Boleto"]),
   items: z.array(z.object({ id: z.string(), title: z.string(), price: z.number().positive() })).min(1, "Sacola vazia"),
+  guestId: z.string().uuid("Identifique-se na lista de convidados"),
+  proof: z.string().trim().max(300).optional(),
 });
 export type Submission = z.infer<typeof submissionSchema>;
 export async function submitGift(input: Submission) {
   const s = submissionSchema.parse(input);
   const gifts = s.items.map((i) => i.title).join(", ");
-  const { error: e1 } = await supabase.from("contributions").insert({ guest: s.guest, contact: s.contact, items: s.items, total: cartTotal(s.items), method: s.method });
+  const { error: e1 } = await supabase.from("contributions").insert({ guest: s.guest, contact: s.contact, items: s.items, total: cartTotal(s.items), method: s.method, guest_id: s.guestId, proof: s.proof || null });
   if (e1) throw e1;
   const { error: e2 } = await supabase.from("messages").insert({ guest: s.guest, text: s.text, card_style: s.cardStyle, gifts });
   if (e2) throw e2;
@@ -151,3 +153,41 @@ export function pixPayload({ key, type, name, city, amount, txid = "***" }: { ke
     tlv("62", tlv("05", txid)) + "6304";
   return body + crc16(body);
 }
+
+// ---- Guest list identification ----
+export type GuestMatch = { id: string; full_name: string; allowed_companions: number; rsvp_status: "pending" | "confirmed" | "declined"; confirmed_guests_count: number };
+export const GUEST_NOT_FOUND = "Seu nome não foi encontrado na lista de convidados. Verifique se digitou seu nome completo corretamente ou fale com os noivos.";
+export const normName = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
+export async function findGuest(name: string): Promise<GuestMatch | null> {
+  const { data, error } = await supabase.rpc("find_guest", { _name: name.trim() });
+  if (error) throw error;
+  return ((data ?? [])[0] as GuestMatch | undefined) ?? null;
+}
+export const companionsValid = (n: number, allowed: number) => Number.isInteger(n) && n >= 0 && n <= allowed;
+export async function sendRsvp(g: GuestMatch, attending: boolean, companions: number) {
+  if (attending && !companionsValid(companions, g.allowed_companions)) throw new Error("Acompanhantes acima do limite");
+  const { error } = await supabase.rpc("guest_rsvp", { _id: g.id, _name: g.full_name, _attending: attending, _companions: attending ? companions : 0 });
+  if (error) throw error;
+}
+const GUEST_KEY = "wedding-guest-v1";
+const guestListeners = new Set<() => void>();
+let guest: GuestMatch | null = null; let guestLoaded = false;
+export function setGuest(g: GuestMatch | null) { guest = g; if (g) localStorage.setItem(GUEST_KEY, JSON.stringify(g)); else localStorage.removeItem(GUEST_KEY); guestListeners.forEach((l) => l()); }
+export function useGuest() {
+  const [g, setG] = useState<GuestMatch | null>(null);
+  useEffect(() => {
+    if (!guestLoaded) { guestLoaded = true; try { guest = JSON.parse(localStorage.getItem(GUEST_KEY) || "null"); } catch { guest = null; } }
+    setG(guest); const l = () => setG(guest); guestListeners.add(l); return () => { guestListeners.delete(l); };
+  }, []);
+  return g;
+}
+
+// ---- Custom info menus ----
+export type CustomMenu = { id: string; title: string; content: string; image_url: string; display_order: number; is_active: boolean };
+export const menusQuery = { queryKey: ["menus"], queryFn: async (): Promise<CustomMenu[]> => {
+  const { data, error } = await supabase.from("custom_menus").select("*").order("display_order").order("created_at");
+  if (error) throw error; return data ?? [];
+} };
+export const menuAnchor = (m: Pick<CustomMenu, "id">) => `info-${m.id.slice(0, 8)}`;
+
+export const STATUS_LABEL: Record<string, string> = { Pendente: "Aguardando Conferência", Confirmado: "Pagamento Confirmado", Cancelado: "Cancelado / Liberado" };

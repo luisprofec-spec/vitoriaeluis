@@ -9,7 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Postcard, PostcardThumb } from "@/components/Postcard";
-import { CARD_STYLES, brl, coupleNames, pixPayload, submitGift, useCart, useSettings, type CardStyle, type PaymentMethod } from "@/lib/wedding";
+import { GuestGate } from "@/components/GuestGate";
+import { useEffect } from "react";
+import { CARD_STYLES, useGuest, brl, coupleNames, pixPayload, submitGift, useCart, useSettings, type CardStyle, type PaymentMethod } from "@/lib/wedding";
 import { useQueryClient } from "@tanstack/react-query";
 
 export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -23,6 +25,9 @@ export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () =
   const [card, setCard] = useState<CardStyle>("floral");
   const [method, setMethod] = useState<PaymentMethod>("Pix");
   const [busy, setBusy] = useState(false);
+  const [proof, setProof] = useState("");
+  const guest = useGuest();
+  useEffect(() => { if (guest) setName(guest.full_name); }, [guest]);
 
   const [done, setDone] = useState<{ msg: string } | null>(null);
   const pixCode = useMemo(() => s.pixKey ? pixPayload({ key: s.pixKey, type: s.pixType, name: coupleNames(s), city: s.pixCity, amount: total }) : "", [s, total]);
@@ -32,12 +37,12 @@ export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () =
   const finish = async () => {
     setBusy(true);
     try {
-      await submitGift({ guest: name, contact, text, cardStyle: card, method, items });
+      await submitGift({ guest: name, contact, text, cardStyle: card, method, items, guestId: guest?.id ?? "", proof });
       const list = items.map((i) => i.title).join(", ");
       const via = method === "Pix" ? "via Pix" : method === "Cartão" ? "com cartão de crédito" : "via boleto";
       setDone({ msg: `Olá! Aqui é ${name}. Acabei de presentear vocês com ${list} no valor de ${brl(total)} ${via}. Segue o comprovante! 💌\n\nMeu recado: "${text}"` });
-      toast.success("Obrigado! Seu presente e cartão foram registrados.");
-      clear(); setName(""); setContact(""); setText("");
+      toast.success("Obrigado! Os noivos vão conferir o pagamento.");
+      clear(); setContact(""); setText(""); setProof("");
       qc.invalidateQueries({ queryKey: ["messages"] });
     } catch (e) {
       toast.error("Não foi possível enviar. Confira os dados e tente novamente.");
@@ -56,9 +61,15 @@ export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () =
           <DialogDescription>{done ? "Seu carinho chegou aos noivos." : <>{items.length} {items.length === 1 ? "presente" : "presentes"} · {brl(total)}</>}</DialogDescription>
         </DialogHeader>
 
-        {step === 1 && (
+        {step === 1 && !guest && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">A lista de presentes é exclusiva para convidados. Identifique-se para continuar.</p>
+            <GuestGate />
+          </div>
+        )}
+        {step === 1 && guest && (
           <div className="space-y-4">
-            <div className="space-y-1.5"><Label htmlFor="n">Seu nome</Label><Input id="n" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div className="rounded-md bg-muted p-3 text-sm">Presenteando como <strong>{guest.full_name}</strong></div>
             <div className="space-y-1.5"><Label htmlFor="c">WhatsApp ou e-mail</Label><Input id="c" maxLength={160} value={contact} onChange={(e) => setContact(e.target.value)} /></div>
             <Button className="w-full" disabled={!name.trim() || contact.trim().length < 3} onClick={() => setStep(2)}>Continuar</Button>
           </div>
@@ -82,7 +93,7 @@ export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () =
         {step === 3 && done && (
           <div className="space-y-4 text-center">
             <Heart className="mx-auto h-10 w-10 text-terracotta" />
-            <p className="text-muted-foreground">Presente registrado! Se quiser, envie o comprovante e seu recado direto aos noivos.</p>
+            <p className="text-muted-foreground">Recebemos seu aviso! O presente fica <strong>aguardando conferência</strong> até os noivos confirmarem o pagamento. Se quiser, envie o comprovante e seu recado direto aos noivos.</p>
             {s.whatsapp && <Button asChild className="w-full"><a href={`https://wa.me/${s.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(done.msg)}`} target="_blank" rel="noreferrer">Enviar Comprovante e Recado aos Noivos pelo WhatsApp</a></Button>}
             <Button variant="ghost" className="w-full" onClick={close}>Fechar</Button>
           </div>
@@ -115,9 +126,14 @@ export function CheckoutDialog({ open, onClose }: { open: boolean; onClose: () =
                 ))}
               </div>
             )}
-            <div className="flex gap-2 border-t pt-4">
+            <div className="space-y-1.5 border-t pt-4">
+              <Label htmlFor="proof">ID da transação ou observação do comprovante (opcional)</Label>
+              <Input id="proof" maxLength={300} placeholder="Ex.: E1234567890…" value={proof} onChange={(e) => setProof(e.target.value)} />
+              <p className="text-xs text-muted-foreground">O presente só é registrado depois que você clicar abaixo.</p>
+            </div>
+            <div className="flex gap-2">
               <Button variant="ghost" onClick={() => setStep(2)}>Voltar</Button>
-              <Button className="flex-1" disabled={busy} onClick={finish}><Heart className="h-4 w-4" /> Já paguei · Registrar presente</Button>
+              <Button className="flex-1" disabled={busy || !guest} onClick={finish}><Heart className="h-4 w-4" /> Já realizei o pagamento</Button>
             </div>
           </div>
         )}

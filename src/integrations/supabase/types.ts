@@ -19,9 +19,11 @@ export type Database = {
           contact: string
           created_at: string
           guest: string
+          guest_id: string | null
           id: string
           items: Json
           method: string
+          proof: string | null
           status: string
           total: number
         }
@@ -29,9 +31,11 @@ export type Database = {
           contact: string
           created_at?: string
           guest: string
+          guest_id?: string | null
           id?: string
           items: Json
           method: string
+          proof?: string | null
           status?: string
           total: number
         }
@@ -39,11 +43,43 @@ export type Database = {
           contact?: string
           created_at?: string
           guest?: string
+          guest_id?: string | null
           id?: string
           items?: Json
           method?: string
+          proof?: string | null
           status?: string
           total?: number
+        }
+        Relationships: []
+      }
+      custom_menus: {
+        Row: {
+          content: string
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string
+          is_active: boolean
+          title: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          title: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          title?: string
         }
         Relationships: []
       }
@@ -83,6 +119,39 @@ export type Database = {
         }
         Relationships: []
       }
+      guests: {
+        Row: {
+          allowed_companions: number
+          confirmed_guests_count: number
+          created_at: string
+          full_name: string
+          id: string
+          phone: string | null
+          rsvp_status: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_companions?: number
+          confirmed_guests_count?: number
+          created_at?: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          rsvp_status?: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_companions?: number
+          confirmed_guests_count?: number
+          created_at?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          rsvp_status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           card_style: string
@@ -110,6 +179,36 @@ export type Database = {
           id?: string
           text?: string
           visible?: boolean
+        }
+        Relationships: []
+      }
+      panel_admins: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          invited_by: string | null
+          status: string
+          token: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          status?: string
+          token?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          status?: string
+          token?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -154,6 +253,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_admin_invite: { Args: never; Returns: boolean }
+      find_guest: {
+        Args: { _name: string }
+        Returns: {
+          allowed_companions: number
+          confirmed_guests_count: number
+          full_name: string
+          id: string
+          rsvp_status: string
+        }[]
+      }
+      guest_rsvp: {
+        Args: {
+          _attending: boolean
+          _companions: number
+          _id: string
+          _name: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -161,6 +280,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      norm_name: { Args: { _t: string }; Returns: string }
+      revoke_panel_admin: { Args: { _id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "user"
