@@ -26,9 +26,10 @@ export type Database = {
           proof: string | null
           status: string
           total: number
+          transaction_id: string | null
         }
         Insert: {
-          contact: string
+          contact?: string
           created_at?: string
           guest: string
           guest_id?: string | null
@@ -38,6 +39,7 @@ export type Database = {
           proof?: string | null
           status?: string
           total: number
+          transaction_id?: string | null
         }
         Update: {
           contact?: string
@@ -50,6 +52,7 @@ export type Database = {
           proof?: string | null
           status?: string
           total?: number
+          transaction_id?: string | null
         }
         Relationships: []
       }
@@ -61,6 +64,8 @@ export type Database = {
           id: string
           image_url: string
           is_active: boolean
+          link_label: string
+          link_url: string
           title: string
         }
         Insert: {
@@ -70,6 +75,8 @@ export type Database = {
           id?: string
           image_url?: string
           is_active?: boolean
+          link_label?: string
+          link_url?: string
           title: string
         }
         Update: {
@@ -79,6 +86,8 @@ export type Database = {
           id?: string
           image_url?: string
           is_active?: boolean
+          link_label?: string
+          link_url?: string
           title?: string
         }
         Relationships: []
@@ -122,6 +131,7 @@ export type Database = {
       guests: {
         Row: {
           allowed_companions: number
+          confirmed_companions: number
           confirmed_guests_count: number
           created_at: string
           full_name: string
@@ -132,6 +142,7 @@ export type Database = {
         }
         Insert: {
           allowed_companions?: number
+          confirmed_companions?: number
           confirmed_guests_count?: number
           created_at?: string
           full_name: string
@@ -142,6 +153,7 @@ export type Database = {
         }
         Update: {
           allowed_companions?: number
+          confirmed_companions?: number
           confirmed_guests_count?: number
           created_at?: string
           full_name?: string
@@ -281,7 +293,23 @@ export type Database = {
         Returns: boolean
       }
       norm_name: { Args: { _t: string }; Returns: string }
+      register_paid_gift: {
+        Args: {
+          _card_style: string
+          _contact: string
+          _guest: string
+          _id: string
+          _items: Json
+          _method: string
+          _paid: boolean
+          _proof: string
+          _text: string
+          _transaction_id: string
+        }
+        Returns: string
+      }
       revoke_panel_admin: { Args: { _id: string }; Returns: undefined }
+      unavailable_gift_ids: { Args: never; Returns: string[] }
     }
     Enums: {
       app_role: "admin" | "user"

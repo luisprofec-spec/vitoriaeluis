@@ -6,3 +6,10 @@
 - [x] 4 cartões postais com prévia no checkout
 - [x] Sigilo: nenhum total na página pública
 - [x] Botão "Agradecer no WhatsApp" com template
+- [ ] Eliminar dados fictícios durante carregamento e atualizar título com identidade real
+- [ ] Lista de convidados: cadastro, lote, filtros, edição, exclusão e CSV
+- [ ] RSVP independente e restrito à lista, com limite de acompanhantes
+- [ ] Pagamentos pendentes apenas após confirmação do visitante; comprovante, conferência e liberação
+- [ ] Convites de administradores, ativação segura e revogação de acesso
+- [ ] Menus informativos editáveis, ordenação e navegação pública desktop/mobile
+- [ ] Testar regras e verificar os fluxos completos no site e painel
