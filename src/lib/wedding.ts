@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
+import { getWeddingSettings } from "@/lib/settings.functions";
 
 export type Venue = { time: string; place: string; address: string };
 export type Settings = {
@@ -13,22 +14,21 @@ export type Settings = {
   musicEnabled: boolean; musicTitle: string; musicUrl: string; musicLoop: boolean;
 };
 export const DEFAULT_SETTINGS: Settings = {
-  partner1: "Helena", partner2: "Rafael", tagline: "Vamos nos casar",
-  story: "Nos conhecemos numa manhã chuvosa de 2019, disputando a última mesa de uma cafeteria.",
-  heroImage: "", storyImage: "", gallery: [], date: "2028-10-14",
-  ceremony: { time: "16:00", place: "", address: "" }, reception: { time: "18:30", place: "", address: "" },
+  partner1: "", partner2: "", tagline: "", story: "",
+  heroImage: "", storyImage: "", gallery: [], date: "",
+  ceremony: { time: "", place: "", address: "" }, reception: { time: "", place: "", address: "" },
   heroImages: [], musicEnabled: false, musicTitle: "", musicUrl: "", musicLoop: true,
-  pixType: "E-mail", pixKey: "", pixCity: "SAO PAULO", whatsapp: "", cardLink: "", boletoLink: "", goal: 15000,
+  pixType: "E-mail", pixKey: "", pixCity: "", whatsapp: "", cardLink: "", boletoLink: "", goal: 0,
 };
 export const PIX_TYPES = ["E-mail", "CPF", "CNPJ", "Telefone", "Chave aleatória"];
-export const coupleNames = (s: Settings) => `${s.partner1} & ${s.partner2}`;
+export const coupleNames = (s: Pick<Settings, "partner1" | "partner2">) => [s.partner1, s.partner2].filter(Boolean).join(" & ");
 export const weddingDate = (s: Settings) => new Date(`${s.date}T${s.ceremony.time || "16:00"}:00-03:00`);
 
 export const settingsQuery = { queryKey: ["settings"], queryFn: async (): Promise<Settings> => {
-  const { data, error } = await supabase.from("site_settings").select("data").eq("id", 1).maybeSingle();
-  if (error) throw error;
-  return { ...DEFAULT_SETTINGS, ...((data?.data as Partial<Settings>) ?? {}) };
+  const data = await getWeddingSettings();
+  return { ...DEFAULT_SETTINGS, ...((data as Partial<Settings>) ?? {}) };
 } };
+export function useSettingsQuery() { return useQuery(settingsQuery); }
 export function useSettings() {
   const q = useQuery(settingsQuery);
   return q.data ?? DEFAULT_SETTINGS;
@@ -36,17 +36,18 @@ export function useSettings() {
 export function useSaveSettings() {
   const qc = useQueryClient();
   return async (s: Settings) => {
-    const { error } = await supabase.from("site_settings").update({ data: s as never, updated_at: new Date().toISOString() }).eq("id", 1);
+    const { error } = await supabase.from("site_settings").upsert({ id: 1, data: s as never, updated_at: new Date().toISOString() });
     if (error) throw error;
     await qc.invalidateQueries({ queryKey: ["settings"] });
   };
 }
 
-export type Gift = { id: string; title: string; price: number; category: string; description: string; image_url: string; sprite_index: number | null; sort: number };
+export type Gift = { id: string; title: string; price: number; category: string; description: string; image_url: string; sprite_index: number | null; sort: number; unavailable?: boolean };
 export const giftsQuery = { queryKey: ["gifts"], queryFn: async (): Promise<Gift[]> => {
-  const { data, error } = await supabase.from("gifts").select("*").order("sort").order("created_at");
+  const [{ data, error }, reserved] = await Promise.all([supabase.from("gifts").select("*").order("sort").order("created_at"), supabase.rpc("unavailable_gift_ids")]);
   if (error) throw error;
-  return (data ?? []).map((g) => ({ ...g, price: Number(g.price) }));
+  if (reserved.error) throw reserved.error;
+  return (data ?? []).map((g) => ({ ...g, price: Number(g.price), unavailable: reserved.data?.includes(g.id) ?? false }));
 } };
 export function useGifts() { return useQuery(giftsQuery).data ?? []; }
 
@@ -57,7 +58,7 @@ export const CARD_STYLES: { id: CardStyle; label: string }[] = [
 ];
 export type PaymentMethod = "Pix" | "Cartão" | "Boleto";
 export type CartItem = { id: string; title: string; price: number };
-export type Contribution = { id: string; created_at: string; guest: string; contact: string; items: CartItem[]; total: number; method: PaymentMethod; status: "Pendente" | "Confirmado" };
+export type Contribution = { id: string; created_at: string; guest: string; contact: string; items: CartItem[]; total: number; method: PaymentMethod; status: "Pendente" | "Confirmado" | "pending_confirmation" | "confirmed" | "cancelled"; proof: string | null; transaction_id: string | null };
 export type Message = { id: string; created_at: string; guest: string; text: string; card_style: CardStyle; gifts: string | null; visible: boolean };
 
 export function useMessages() {
@@ -82,7 +83,7 @@ export function useCart() {
     setItems(cart);
     const l = () => setItems(cart); cartListeners.add(l); return () => { cartListeners.delete(l); };
   }, []);
-  const add = useCallback((g: Gift) => { if (!cart.some((i) => i.id === g.id)) setCart([...cart, { id: g.id, title: g.title, price: g.price }]); }, []);
+  const add = useCallback((g: Gift) => { if (!g.unavailable && !cart.some((i) => i.id === g.id)) setCart([...cart, { id: g.id, title: g.title, price: g.price }]); }, []);
   const remove = useCallback((id: string) => setCart(cart.filter((i) => i.id !== id)), []);
   const clear = useCallback(() => setCart([]), []);
   return { items, total: cartTotal(items), add, remove, clear, has: (id: string) => items.some((i) => i.id === id) };
@@ -91,20 +92,22 @@ export function useCart() {
 // ---- Guest submission ----
 export const submissionSchema = z.object({
   guest: z.string().trim().min(1, "Informe seu nome").max(120),
-  contact: z.string().trim().min(3, "Informe WhatsApp ou e-mail").max(160),
-  text: z.string().trim().min(1, "Escreva uma mensagem").max(1000),
+  contact: z.string().trim().max(160).default(""),
+  text: z.string().trim().max(1000).default(""),
   cardStyle: z.enum(["floral", "honeymoon", "minimal", "party"]),
   method: z.enum(["Pix", "Cartão", "Boleto"]),
   items: z.array(z.object({ id: z.string(), title: z.string(), price: z.number().positive() })).min(1, "Sacola vazia"),
+  paid: z.literal(true),
+  proof: z.string().nullable().optional(),
+  transactionId: z.string().trim().max(200).optional(),
+  id: z.string().uuid(),
 });
 export type Submission = z.infer<typeof submissionSchema>;
 export async function submitGift(input: Submission) {
   const s = submissionSchema.parse(input);
-  const gifts = s.items.map((i) => i.title).join(", ");
-  const { error: e1 } = await supabase.from("contributions").insert({ guest: s.guest, contact: s.contact, items: s.items, total: cartTotal(s.items), method: s.method });
-  if (e1) throw e1;
-  const { error: e2 } = await supabase.from("messages").insert({ guest: s.guest, text: s.text, card_style: s.cardStyle, gifts });
-  if (e2) throw e2;
+  const { data, error } = await supabase.rpc("register_paid_gift", { _id: s.id, _guest: s.guest, _contact: s.contact, _items: s.items, _method: s.method, _text: s.text, _card_style: s.cardStyle, _proof: s.proof ?? "", _transaction_id: s.transactionId ?? "", _paid: s.paid });
+  if (error) throw error;
+  return data;
 }
 
 // ---- Messages / links ----
