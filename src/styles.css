@@ -190,3 +190,7 @@
 @utility postcard-honeymoon { background: var(--card-honeymoon); color: var(--card-honeymoon-ink); }
 @utility postcard-minimal { background: var(--card-minimal); color: var(--card-minimal-ink); border: 1px solid var(--border); }
 @utility postcard-party { background: var(--card-party); color: var(--card-party-ink); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

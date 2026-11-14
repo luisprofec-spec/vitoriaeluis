@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Calendar, Check, Clock, Heart, MapPin, ShoppingBag } from "lucide-react";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Calendar, Check, Clock, Heart, MapPin, ShoppingBag, Menu, ExternalLink } from "lucide-react";
 import couple from "@/assets/couple.jpg";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -10,19 +11,31 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/com
 import { CheckoutDialog } from "@/components/GiftDialog";
 import { CartSheet } from "@/components/CartSheet";
 import { Postcard } from "@/components/Postcard";
-import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, useSettings, weddingDate } from "@/lib/wedding";
+import { RsvpSection } from "@/components/RsvpSection";
+import { WeddingLoading } from "@/components/WeddingLoading";
+import { useInfoMenus } from "@/lib/guest-data";
+import { safeExternalUrl } from "@/lib/wedding-rules";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { brl, useGifts, coupleNames, fmtDate, fmtLongDate, useCart, useMessages, settingsQuery, weddingDate } from "@/lib/wedding";
 
 export const Route = createFileRoute("/")({
-  head: () => ({
+  loader: ({ context }) => context.queryClient.ensureQueryData(settingsQuery),
+  pendingComponent: WeddingLoading,
+  pendingMs: 0,
+  head: ({ loaderData }) => {
+    const title = loaderData ? `${coupleNames(loaderData)} · Nosso Casamento` : "Nosso Casamento · Lista de Presentes";
+    const image = loaderData?.heroImages[0] || loaderData?.heroImage;
+    return {
     meta: [
-      { title: "Nosso Casamento · Lista de Presentes" },
-      { name: "description", content: "Celebre conosco: data, local, nossa história, lista de presentes via Pix e mural de recados." },
-      { property: "og:title", content: "Nosso Casamento · Lista de Presentes" },
-      { property: "og:description", content: "Data, local, lista de presentes via Pix e mural de recados." },
+      { title },
+      { name: "description", content: "Celebre conosco: data, local, confirmação de presença, lista de presentes via Pix e mural de recados." },
+      { property: "og:title", content: title },
+      { property: "og:description", content: "Nosso casamento: data, local, presença, presentes e palavras de carinho." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      ...(image?.startsWith("https://") ? [{ property: "og:image", content: image }, { name: "twitter:image", content: image }] : []),
     ],
-  }),
+  }; },
   component: Index,
 });
 
@@ -41,12 +54,14 @@ function useCountdown(target: Date) {
 }
 
 function Index() {
-  const st = useSettings();
+  const { data: st } = useSuspenseQuery(settingsQuery);
   const names = coupleNames(st);
   const cd = useCountdown(weddingDate(st));
   const [filter, setFilter] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkout, setCheckout] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
+  const menus = (useInfoMenus().data ?? []).filter(menu => menu.is_active);
   const cart = useCart();
   const messages = useMessages().filter((m) => m.visible);
   const gifts = useGifts();
@@ -55,7 +70,7 @@ function Index() {
   useEffect(() => { if (!api || heroes.length < 2) return; const t = setInterval(() => api.scrollNext(), 5000); return () => clearInterval(t); }, [api, heroes.length]);
   const storyImg = st.storyImage || couple;
   useEffect(() => { document.title = `${names} · Nosso Casamento`; }, [names]);
-  const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"]];
+  const nav = [["#historia", "Nossa História"], ["#evento", "Onde e Quando"], ["#presenca", "Confirmar Presença"], ["#presentes", "Lista de Presentes"], ["#mural", "Mural de Recados"], ...menus.map(menu => [`#menu-${menu.id}`, menu.title])];
 
   return (
     <div className="min-h-screen bg-background">
@@ -68,12 +83,13 @@ function Index() {
           </CarouselContent>
         </Carousel>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-foreground/40 via-foreground/20 to-foreground/70" />
-        <nav className="relative z-10 pointer-events-auto mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-2 px-6 py-6 text-sm text-primary-foreground/90">
-          {nav.map(([h, l]) => <a key={h} href={h} className="hover:text-primary-foreground">{l}</a>)}
+        <nav aria-label="Navegação do casamento" className="relative z-10 mx-auto hidden w-full max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-3 px-20 py-6 text-sm text-primary-foreground/90 md:flex">
+          {nav.map(([h, l]) => <a key={h} href={h} className="max-w-full break-words hover:text-primary-foreground">{l}</a>)}
         </nav>
+        <div className="relative z-10 p-5 md:hidden"><Sheet open={mobileNav} onOpenChange={setMobileNav}><SheetTrigger asChild><Button size="icon" variant="secondary" aria-label="Abrir menu"><Menu className="h-5 w-5" /></Button></SheetTrigger><SheetContent side="left"><SheetHeader><SheetTitle>{names}</SheetTitle></SheetHeader><nav aria-label="Menu do casamento" className="flex flex-col gap-5 px-6 py-8">{nav.map(([h, l]) => <a key={h} href={h} className="break-words text-sm" onClick={() => setMobileNav(false)}>{l}</a>)}</nav></SheetContent></Sheet></div>
         <div className="pointer-events-none relative z-10 m-auto px-6 text-center text-primary-foreground">
           <p className="eyebrow mb-6">{st.tagline}</p>
-          <h1 className="text-6xl font-medium italic md:text-8xl">{names}</h1>
+          <h1 className="max-w-5xl break-words text-5xl font-medium italic sm:text-6xl md:text-8xl">{names}</h1>
           <p className="mt-6 text-lg tracking-wide first-letter:uppercase">{fmtLongDate(st.date)}</p>
           <div className="mt-10 flex justify-center gap-8">
             {[["Dias", cd.d], ["Horas", cd.h], ["Minutos", cd.m]].map(([l, v]) => (
@@ -120,6 +136,8 @@ function Index() {
         </div>
       </section>
 
+      <RsvpSection />
+
       <section id="presentes" className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center">
           <p className="eyebrow">Lista de presentes</p>
@@ -137,9 +155,9 @@ function Index() {
                 <p className="eyebrow text-[10px]">{g.category}</p>
                 <h3 className="mt-1 text-xl">{g.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{g.description}</p>
-                <div className="mt-5 flex items-center justify-between">
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
                   <span className="text-lg font-semibold">{brl(g.price)}</span>
-                  {cart.has(g.id)
+                  {g.unavailable ? <Button size="sm" variant="secondary" disabled>Indisponível</Button> : cart.has(g.id)
                     ? <Button size="sm" variant="secondary" onClick={() => setCartOpen(true)}><Check className="h-4 w-4" /> Na sacola</Button>
                     : <Button size="sm" onClick={() => cart.add(g)}><ShoppingBag className="h-4 w-4" /> Adicionar à Sacola</Button>}
                 </div>
@@ -162,6 +180,8 @@ function Index() {
           </div>
         </div>
       </section>
+
+      {menus.map(menu => <section id={`menu-${menu.id}`} key={menu.id} className="scroll-mt-8 border-t px-6 py-20"><div className={`mx-auto grid max-w-5xl items-center gap-10 ${menu.image_url ? "md:grid-cols-2" : ""}`}>{menu.image_url && <img src={menu.image_url} alt={menu.title} loading="lazy" className="aspect-[4/3] w-full rounded-sm object-cover" />}<div><h2 className="break-words text-4xl">{menu.title}</h2><p className="mt-6 whitespace-pre-line break-words leading-relaxed text-muted-foreground">{menu.content}</p>{safeExternalUrl(menu.link_url) && menu.link_label && <Button asChild variant="outline" className="mt-6 h-auto whitespace-normal py-2"><a href={safeExternalUrl(menu.link_url)} target="_blank" rel="noopener noreferrer">{menu.link_label}<ExternalLink className="h-4 w-4 shrink-0" /></a></Button>}</div></div></section>)}
 
       <footer className="px-6 py-12 text-center text-sm text-muted-foreground">
         <Heart className="mx-auto mb-3 h-5 w-5 text-terracotta" />

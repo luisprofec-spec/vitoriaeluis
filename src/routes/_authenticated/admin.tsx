@@ -1,18 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle, Eye, EyeOff, Gift, LogOut, MessageCircle, MessageSquare, Target, Wallet } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Gift, LogOut, MessageSquare, Target, Wallet } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Postcard } from "@/components/Postcard";
 import { IdentityForm } from "@/components/admin/IdentityForm";
 import { GiftsManager } from "@/components/admin/GiftsManager";
 import { SettingsForm } from "@/components/admin/SettingsForm";
-import { brl, contactLink, coupleNames, fmtDate, thankYouMessage, useMessages, useSettings, type Contribution } from "@/lib/wedding";
+import { GuestsManager } from "@/components/admin/GuestsManager";
+import { MenusManager } from "@/components/admin/MenusManager";
+import { PaymentsManager } from "@/components/admin/PaymentsManager";
+import { WeddingLoading } from "@/components/WeddingLoading";
+import { confirmedTotal, isPendingPayment } from "@/lib/wedding-rules";
+import { brl, coupleNames, fmtDate, useMessages, useSettingsQuery, type Settings, type Contribution } from "@/lib/wedding";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [
@@ -28,9 +32,12 @@ function Admin() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const role = useQuery({ queryKey: ["is-admin", user.id], queryFn: async () => {
-    const { data } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+    const claimed = await supabase.rpc("claim_admin_invite");
+    if (claimed.error) throw claimed.error;
+    const { data, error } = await supabase.rpc("has_role", { _user_id: user.id, _role: "admin" });
+    if (error) throw error;
     return !!data;
-  } });
+  }, refetchInterval: 30000 });
   const signOut = async () => { await qc.cancelQueries(); qc.clear(); await supabase.auth.signOut(); nav({ to: "/auth", replace: true }); };
   if (role.isLoading) return <div className="p-10 text-center text-muted-foreground">Carregando…</div>;
   if (!role.data) return (
@@ -42,29 +49,33 @@ function Admin() {
 }
 
 function Dashboard({ onSignOut }: { onSignOut: () => void }) {
+  const query = useSettingsQuery();
+  if (query.isPending) return <WeddingLoading />;
+  if (query.isError) return <div className="p-10 text-center"><p>Não foi possível carregar as configurações.</p><Button className="mt-4" onClick={() => query.refetch()}>Tentar novamente</Button></div>;
+  return <ReadyDashboard onSignOut={onSignOut} settings={query.data} />;
+}
+
+function ReadyDashboard({ onSignOut, settings }: { onSignOut: () => void; settings: Settings }) {
   const qc = useQueryClient();
-  const settings = useSettings();
   const messages = useMessages();
-  const contributions = useQuery({ queryKey: ["contributions"], queryFn: async () => {
+  const contributionQuery = useQuery({ queryKey: ["contributions"], queryFn: async () => {
     const { data, error } = await supabase.from("contributions").select("*").order("created_at", { ascending: false });
     if (error) throw error;
     return (data ?? []) as unknown as Contribution[];
-  } }).data ?? [];
-  const toggleStatus = async (c: Contribution) => {
-    await supabase.from("contributions").update({ status: c.status === "Confirmado" ? "Pendente" : "Confirmado" }).eq("id", c.id);
-    qc.invalidateQueries({ queryKey: ["contributions"] });
-  };
+  } });
+  const contributions = contributionQuery.data ?? [];
   const toggleMsg = async (id: string, visible: boolean) => {
     await supabase.from("messages").update({ visible: !visible }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["messages"] });
   };
-  const total = contributions.filter((c) => c.status === "Confirmado").reduce((s, c) => s + Number(c.total), 0);
-  const pending = contributions.filter((c) => c.status === "Pendente").reduce((s, c) => s + Number(c.total), 0);
+  const total = confirmedTotal(contributions);
+  const pendingRows = contributions.filter(c => isPendingPayment(c.status));
+  const pending = pendingRows.reduce((s, c) => s + Number(c.total), 0);
   const goal = settings.goal || 1;
   const stats = [
     { icon: Wallet, label: "Total arrecadado", value: brl(total), sub: `${brl(pending)} pendente` },
     { icon: Target, label: "Meta", value: brl(settings.goal), sub: `${Math.round((total / goal) * 100)}% alcançado`, progress: Math.min(100, (total / goal) * 100) },
-    { icon: Gift, label: "Presentes recebidos", value: contributions.length },
+    { icon: Gift, label: "Presentes recebidos", value: contributions.filter(c => c.status !== "cancelled").length },
     { icon: MessageSquare, label: "Mensagens", value: messages.length },
   ];
   return (
@@ -87,38 +98,13 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
           ))}
         </div>
         <Tabs defaultValue="presentes" className="mt-10">
-          <TabsList className="flex-wrap">
-            <TabsTrigger value="presentes">Presentes</TabsTrigger><TabsTrigger value="mensagens">Mensagens</TabsTrigger><TabsTrigger value="catalogo">Gerenciar Presentes</TabsTrigger>
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
+            <TabsTrigger value="presentes">Presentes{pendingRows.length > 0 && <Badge variant="secondary" className="ml-1">{pendingRows.length}</Badge>}</TabsTrigger><TabsTrigger value="mensagens">Mensagens</TabsTrigger><TabsTrigger value="catalogo">Gerenciar Presentes</TabsTrigger>
             <TabsTrigger value="identidade">Identidade do Casal & Fotos</TabsTrigger><TabsTrigger value="config">Configurações</TabsTrigger>
+            <TabsTrigger value="convidados">Lista de Convidados</TabsTrigger><TabsTrigger value="menus">Menus Informativos</TabsTrigger>
           </TabsList>
           <TabsContent value="presentes">
-            <Card className="overflow-x-auto p-0">
-              <Table>
-                <TableHeader><TableRow><TableHead>Data</TableHead><TableHead>Convidado</TableHead><TableHead>Presentes</TableHead><TableHead>Valor</TableHead><TableHead>Pagamento</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
-                <TableBody>
-                  {contributions.map((c) => (
-                    <TableRow key={c.id}>
-                      <TableCell>{fmtDate(c.created_at)}</TableCell>
-                      <TableCell><div className="font-medium">{c.guest}</div><div className="text-xs text-muted-foreground">{c.contact}</div></TableCell>
-                      <TableCell className="max-w-56">{c.items.map((i) => i.title).join(", ")}</TableCell>
-                      <TableCell>{brl(Number(c.total))}</TableCell>
-                      <TableCell>{c.method}</TableCell>
-                      <TableCell><Badge variant={c.status === "Confirmado" ? "default" : "secondary"} className={c.status === "Confirmado" ? "bg-success" : ""}>{c.status}</Badge></TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={contactLink(c.contact, thankYouMessage(c.guest, c.items.map((i) => i.title), settings))} target="_blank" rel="noreferrer"><MessageCircle className="h-4 w-4" /> Agradecer no WhatsApp</a>
-                          </Button>
-                          <Button size="sm" variant={c.status === "Confirmado" ? "ghost" : "default"} onClick={() => toggleStatus(c)}>
-                            {c.status === "Confirmado" ? "Desfazer" : <><CheckCircle className="h-4 w-4" /> Confirmar pagamento</>}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+            {contributionQuery.isError ? <p role="alert" className="text-destructive">Não foi possível carregar os pagamentos.</p> : contributionQuery.isPending ? <p className="py-8 text-center text-muted-foreground">Carregando pagamentos…</p> : <PaymentsManager contributions={contributions} settings={settings} />}
           </TabsContent>
           <TabsContent value="mensagens" className="grid gap-4 md:grid-cols-2">
             {messages.map((m) => (
@@ -136,6 +122,8 @@ function Dashboard({ onSignOut }: { onSignOut: () => void }) {
           <TabsContent value="catalogo"><GiftsManager /></TabsContent>
           <TabsContent value="identidade"><IdentityForm settings={settings} /></TabsContent>
           <TabsContent value="config"><SettingsForm settings={settings} /></TabsContent>
+          <TabsContent value="convidados"><GuestsManager /></TabsContent>
+          <TabsContent value="menus"><MenusManager /></TabsContent>
         </Tabs>
       </div>
     </div>

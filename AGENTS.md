@@ -63,3 +63,13 @@ O **MatrimoniX** resolve esse gargalo eliminando o intermediário: o convidado e
 # Projeto: Site de Casamento White-Label com Lista de Presentes via Pix Dinâmico
 
 Crie uma aplicação web moderna, elegante e responsiva para site de casamento, com visual white-label customizável pelo painel /admin, sacola multisseleção de presentes, seleção de cartões postais, player de música com contorno de autoplay e checkout com QR Code Pix dinâmico calculado na hora.
+```
+
+## Architecture
+- Load settings via a public server function and route loader; persisted identity must precede rendering and metadata.
+- Keep guest, menu and payment managers in dashboard tabs; flows stay modular.
+- Restrict RSVP to normalized full-name RPCs with database companion validation; guest lists remain private.
+- Register paid gifts atomically with catalog prices and row locks; derive availability from pending/confirmed contributions so cancellations release gifts.
+- Store proofs privately with admin-only short-lived links; financial documents must not be public.
+- Claim invites only for verified matching emails via protected user_roles; shared access cannot rely on client privileges.
+- Extend existing schemas additively with explicit grants; deployed data stays compatible.

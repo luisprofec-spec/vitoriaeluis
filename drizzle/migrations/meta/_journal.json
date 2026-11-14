@@ -29,6 +29,13 @@
       "when": 1794632216533,
       "tag": "0003_guest_rsvp_payment_review_shared_admin_menus",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794632727108,
+      "tag": "0004_normalize_optional_payment_proof",
+      "breakpoints": true
     }
   ]
 }

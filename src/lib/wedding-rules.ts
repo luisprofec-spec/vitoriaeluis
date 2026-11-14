@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const normalizeGuestName = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
-export const guestSchema = z.object({ full_name: z.string().trim().min(3).max(160), phone: z.string().trim().max(40).nullable().optional(), allowed_companions: z.number().int().min(0), confirmed_companions: z.number().int().min(0).default(0), rsvp_status: z.enum(["pending", "confirmed", "declined"]).default("pending") }).refine(g => g.confirmed_companions <= g.allowed_companions, { message: "Acompanhantes acima do permitido", path: ["confirmed_companions"] });
+export const guestSchema = z.object({ full_name: z.string().trim().min(3).max(160), phone: z.string().trim().max(40).nullable().default(null), allowed_companions: z.number().int().min(0), confirmed_companions: z.number().int().min(0).default(0), rsvp_status: z.enum(["pending", "confirmed", "declined"]).default("pending") }).refine(g => g.confirmed_companions <= g.allowed_companions, { message: "Acompanhantes acima do permitido", path: ["confirmed_companions"] });
 export function parseGuestBatch(text: string) {
   const seen = new Set<string>();
   return text.split(/\r?\n/).filter(line => line.trim()).map((line, i) => {

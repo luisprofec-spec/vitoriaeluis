@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PIX_TYPES, useSaveSettings, type Settings, type Venue } from "@/lib/wedding";
+import { AdminInvites } from "@/components/admin/AdminInvites";
 
 function F({ label, children }: { label: string; children: ReactNode }) {
   return <div className="space-y-1.5"><Label>{label}</Label>{children}</div>;
@@ -18,7 +18,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
   const save = useSaveSettings();
   const venue = (k: "ceremony" | "reception", f: keyof Venue, v: string) => setS({ ...s, [k]: { ...s[k], [f]: v } });
   return (
-    <Card className="space-y-8 p-6">
+    <div className="space-y-8 py-6">
       <section className="space-y-4"><h3 className="text-xl">Pix</h3>
         <div className="grid gap-4 md:grid-cols-[200px_1fr_200px]">
           <F label="Tipo de chave"><Select value={s.pixType} onValueChange={(v) => setS({ ...s, pixType: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PIX_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></F>
@@ -54,6 +54,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         {s.musicUrl && <audio controls src={s.musicUrl} className="w-full" preload="none" />}
       </section>
       <Button onClick={async () => { try { await save(s); toast.success("Configurações salvas!"); } catch { toast.error("Não foi possível salvar."); } }}>Salvar Configurações</Button>
-    </Card>
+      <AdminInvites />
+    </div>
   );
 }
